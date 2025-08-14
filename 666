@@ -1,0 +1,68 @@
+getgenv().Avulsion = {
+    ['Start'] = {
+        ['Intro'] = {
+            ['Version'] = ('0.21')
+        },
+        ['Aimbot'] = {
+            ['Keybind'] = "E",
+            ['Smoothness'] = 1,
+            ['Prediction'] = 0,
+            ['HitPart'] = "HumanoidRootPart"
+        }
+    }
+}
+local PlayersService = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local localPlayer = PlayersService.LocalPlayer
+local mouse = localPlayer:GetMouse()
+local camera = workspace.CurrentCamera
+local isAimbotEnabled = false
+local currentTarget = nil
+local offScreenFrames = 0
+UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
+    if gameProcessedEvent then return end
+    local aimbot = getgenv().Avulsion['Start']['Aimbot']
+    if input.KeyCode == Enum.KeyCode[aimbot['Keybind']] then
+        isAimbotEnabled = not isAimbotEnabled
+        currentTarget = nil
+    end
+end)
+RunService.RenderStepped:Connect(function()
+    if not isAimbotEnabled then return end
+    local screenCenter = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
+    local aimbot = getgenv().Avulsion['Start']['Aimbot']
+    if currentTarget and currentTarget.Parent then
+        local screenPoint = camera:WorldToScreenPoint(currentTarget.Position)
+        if screenPoint.Z > 0 then
+            offScreenFrames = 0
+        else
+            offScreenFrames = offScreenFrames + 1
+        end
+        if offScreenFrames > 3 then
+            currentTarget = nil
+            offScreenFrames = 0
+        end
+    end
+    if not currentTarget then
+        local closestDistance = math.huge
+        for _, player in ipairs(PlayersService:GetPlayers()) do
+            if player ~= localPlayer and player.Character then
+                local targetPart = player.Character:FindFirstChild(aimbot['HitPart'])
+                if targetPart then
+                    local screenPoint = camera:WorldToScreenPoint(targetPart.Position)
+                    local distanceToCenter = (Vector2.new(screenPoint.X, screenPoint.Y) - screenCenter).Magnitude
+                    if distanceToCenter < closestDistance then
+                        closestDistance = distanceToCenter
+                        currentTarget = targetPart
+                    end
+                end
+            end
+        end
+    end
+    if currentTarget then
+        local predictedPosition = currentTarget.Position + currentTarget.Velocity * aimbot['Prediction']
+        local targetCFrame = CFrame.new(camera.CFrame.Position, predictedPosition)
+        camera.CFrame = camera.CFrame:Lerp(targetCFrame, aimbot['Smoothness'])
+    end
+end)
